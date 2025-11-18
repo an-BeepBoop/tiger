@@ -1,0 +1,115 @@
+options {
+  UNICODE_INPUT = true;
+  JAVA_UNICODE_ESCAPE = false;
+  DEBUG_PARSER = false;
+  DEBUG_LOOKAHEAD = false;
+  DEBUG_TOKEN_MANAGER = false;
+  STATIC = false;
+  JDK_VERSION = "1.9";
+}
+PARSER_BEGIN(Parser)
+public class Parser {}
+PARSER_END(Parser)
+
+/**************************************************
+ * The lexical spec starts here                   *
+ **************************************************/
+
+TOKEN_MGR_DECLS :
+{
+  int commentNestingDepth = 0;
+  public static void main(String[] args) {
+    try {
+      java.io.Reader reader = new java.io.InputStreamReader(System.in, "UTF-8");
+      SimpleCharStream stream = new SimpleCharStream(reader);
+      ParserTokenManager scanner = new ParserTokenManager(stream);
+      while (true) {
+        Token token = scanner.getNextToken();
+        for (Token t = token.specialToken; t != null; t = t.specialToken)
+          System.out.println(tokenImage[t.kind] + " " + t);
+        if (token.kind == EOF) break;
+        System.out.println(tokenImage[token.kind] + " " + token);
+      }
+    } catch (TokenMgrError | java.io.UnsupportedEncodingException e) {
+      System.out.println("!ERROR");
+      System.err.println(e.getMessage());
+      System.exit(-1);
+    }
+  }
+}
+
+/* WHITE SPACE */
+SKIP : { " " | "\t" | "\n" | "\r" | "\13" | "\f" }
+
+
+/* KEYWORDS */
+TOKEN :
+{ "class"   | "public"  | "static" | "void"   | "main"   
+| "extends" | "return"  | "if"     | "else"   | "while" 
+| "this"    | "new"     | "break"  }
+
+
+/* PRIMITIVE / IN-BUILT TYPES */
+// In this version of minijava, a 'String' is a C-like nul terminated string.
+TOKEN :
+{ "int"  | "char"  | "boolean" | "float" | "double" | "String" }
+
+/* OPERATORS */
+TOKEN :
+{ "="  | ">"  | "<"  | "!"  | ":"  | ";"  | "." 
+| "==" | ">=" | "<=" | "!=" | "&&" | "||" | "+"  
+| "-"  | "*"  | "/"  | "%"  | "&"  | "^"  | "("  
+| ")"  | "{"  | "}"  | "["  | "]"  | "<<" | ">>" 
+| ">>>" | "|" | "xor" | "~" }
+
+/* COMMENTS */
+SKIP:
+{  <SINGLE_LINE_COMMENT: "//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")> }
+
+MORE: { "/*" { commentNestingDepth = 1; } : IN_MULTI_LINE_COMMENT }
+<IN_MULTI_LINE_COMMENT>
+SKIP :
+{ "/*" { commentNestingDepth++; }
+| "*/" { commentNestingDepth--; SwitchTo ( commentNestingDepth == 0 ? DEFAULT : IN_MULTI_LINE_COMMENT ); }
+}
+
+<IN_MULTI_LINE_COMMENT>
+MORE:
+{  <~[]> }
+
+
+/* HELPER CAPTURE GROUP DECLARATIONS */
+TOKEN :
+{ < #DIGIT: ["0"-"9"]>
+| < #LETTER: ["a"-"z","A"-"Z"]>
+| < #HEX_DIGIT: <DIGIT> | ["a"-"f","A"-"F"] >
+| < #OCTAL_DIGIT: ["0"-"7"]>
+| < #EXTENDED_CHAR : ["\240"-"\377"]>
+| < #OTHER_CHAR:  " " | "!" | "#" | "$" | "%" | "&" | "(" | ")"
+              | "*" | "+" | "," | "-" | "." | "/" | ":" | ";"
+              | "<" | "=" | ">" | "?" | "@" | "[" | "]" | "^"
+              | "_" | "`" | "{" | "|" | "}" | "~" | <EXTENDED_CHAR> >
+| <#ESCAPE : "\\" (["a","b","f","n","r","t","v","\\","'","\""]
+    | ["0"-"3"] <OCTAL_DIGIT> <OCTAL_DIGIT>
+    | "x" <HEX_DIGIT> <HEX_DIGIT>
+    | "u" <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT>
+    | "U" <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT> <HEX_DIGIT>) > | < #PRINTING_CHAR: <LETTER> | <DIGIT> | <OTHER_CHAR> >
+}
+
+/* NUMBERS */
+// i.e INT LITERALS
+TOKEN :
+ { < NUMBER: <DECIMAL_NUMBER> | <RADIX_NUMBER> >
+ | < #DECIMAL_NUMBER: (<DIGIT>)+ >
+ | < #RADIX_NUMBER: ((<DIGIT>)+ "_" (<HEX_DIGIT>)+) >
+ }
+
+/* CHARACTERS */
+TOKEN: { < CHAR: "'" (<PRINTING_CHAR> | <ESCAPE> | "\"") "'"> }
+
+/* STRINGS */
+TOKEN: { < STRING: "\"" (<PRINTING_CHAR> | <ESCAPE> | "'")* "\"" > }
+
+/*  IDENTIFIERS */
+// An identifier is a sequence of letters, digits, and underscores, starting with a letter.
+TOKEN: { <ID: <LETTER> (<LETTER> | <DIGIT> | "_")*> }
